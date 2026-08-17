@@ -10,50 +10,35 @@ namespace Microsoft.eShopWeb.Infrastructure.Data;
 public class CatalogContextSeed
 {
     public static async Task SeedAsync(CatalogContext catalogContext,
-        ILogger logger,
-        int retry = 0)
+        ILogger logger)
     {
-        var retryForAvailability = retry;
-        try
+        if (catalogContext.Database.IsSqlServer())
         {
-            if (catalogContext.Database.IsSqlServer())
-            {
-                catalogContext.Database.Migrate();
-            }
-
-            if (!await catalogContext.CatalogBrands.AnyAsync())
-            {
-                await catalogContext.CatalogBrands.AddRangeAsync(
-                    GetPreconfiguredCatalogBrands());
-
-                await catalogContext.SaveChangesAsync();
-            }
-
-            if (!await catalogContext.CatalogTypes.AnyAsync())
-            {
-                await catalogContext.CatalogTypes.AddRangeAsync(
-                    GetPreconfiguredCatalogTypes());
-
-                await catalogContext.SaveChangesAsync();
-            }
-
-            if (!await catalogContext.CatalogItems.AnyAsync())
-            {
-                await catalogContext.CatalogItems.AddRangeAsync(
-                    GetPreconfiguredItems());
-
-                await catalogContext.SaveChangesAsync();
-            }
+            await catalogContext.Database.MigrateAsync();
         }
-        catch (Exception ex)
-        {
-            if (retryForAvailability >= 10) throw;
 
-            retryForAvailability++;
-            
-            logger.LogError(ex.Message);
-            await SeedAsync(catalogContext, logger, retryForAvailability);
-            throw;
+        if (!await catalogContext.CatalogBrands.AnyAsync())
+        {
+            await catalogContext.CatalogBrands.AddRangeAsync(
+                GetPreconfiguredCatalogBrands());
+
+            await catalogContext.SaveChangesAsync();
+        }
+
+        if (!await catalogContext.CatalogTypes.AnyAsync())
+        {
+            await catalogContext.CatalogTypes.AddRangeAsync(
+                GetPreconfiguredCatalogTypes());
+
+            await catalogContext.SaveChangesAsync();
+        }
+
+        if (!await catalogContext.CatalogItems.AnyAsync())
+        {
+            await catalogContext.CatalogItems.AddRangeAsync(
+                GetPreconfiguredItems());
+
+            await catalogContext.SaveChangesAsync();
         }
     }
 

@@ -198,7 +198,8 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        app.Logger.LogError(ex, "An error occurred seeding the DB.");
+        app.Logger.LogCritical(ex, "Database migration or seeding failed. Application startup cannot continue.");
+        throw;
     }
 }
 
