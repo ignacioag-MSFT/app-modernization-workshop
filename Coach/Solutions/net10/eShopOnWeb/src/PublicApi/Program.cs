@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using Azure.Identity;
 using Microsoft.Azure.StackExchangeRedis;
 using StackExchange.Redis;
 using BlazorShared;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.eShopWeb;
 using Microsoft.eShopWeb.ApplicationCore.Constants;
@@ -81,12 +83,17 @@ if (!string.IsNullOrEmpty(redisHostName))
             TokenCredential = new DefaultAzureCredential()
         });
     configurationOptions.AbortOnConnectFail = false;
+    var redisConnection = await ConnectionMultiplexer.ConnectAsync(configurationOptions);
 
     builder.Services.AddStackExchangeRedisCache(options =>
     {
-        options.ConfigurationOptions = configurationOptions;
+        options.ConnectionMultiplexerFactory =
+            () => Task.FromResult<IConnectionMultiplexer>(redisConnection);
         options.InstanceName = "eShopApi:";
     });
+    builder.Services.AddDataProtection()
+        .SetApplicationName("eShopOnWeb")
+        .PersistKeysToStackExchangeRedis(redisConnection, "eShopOnWeb-DataProtection-Keys");
 }
 else
 {

@@ -8,6 +8,7 @@ using BlazorAdmin.Services;
 using Blazored.LocalStorage;
 using BlazorShared;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
@@ -111,12 +112,17 @@ if (!string.IsNullOrEmpty(redisHostName))
             TokenCredential = new DefaultAzureCredential()
         });
     configurationOptions.AbortOnConnectFail = false;
+    var redisConnection = await ConnectionMultiplexer.ConnectAsync(configurationOptions);
 
     builder.Services.AddStackExchangeRedisCache(options =>
     {
-        options.ConfigurationOptions = configurationOptions;
+        options.ConnectionMultiplexerFactory =
+            () => Task.FromResult<IConnectionMultiplexer>(redisConnection);
         options.InstanceName = "eShopWeb:";
     });
+    builder.Services.AddDataProtection()
+        .SetApplicationName("eShopOnWeb")
+        .PersistKeysToStackExchangeRedis(redisConnection, "eShopOnWeb-DataProtection-Keys");
 }
 else
 {
