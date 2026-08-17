@@ -28,6 +28,13 @@ jobs:
           - name: contoso-university
             context: Coach/Solutions/dotnet/dotnet-migration-copilot-samples/ContosoUniversity
             dockerfile: Coach/Solutions/dotnet/dotnet-migration-copilot-samples/ContosoUniversity/Dockerfile
+          - name: eshoponweb
+            context: Coach/Solutions/net10/eShopOnWeb
+            dockerfile: Coach/Solutions/net10/eShopOnWeb/src/Web/Dockerfile
+          - name: eshoponweb-api
+            context: Coach/Solutions/net10/eShopOnWeb
+            dockerfile: Coach/Solutions/net10/eShopOnWeb/src/PublicApi/Dockerfile
+          
     steps:
       - name: Lower case REPO
         run: |

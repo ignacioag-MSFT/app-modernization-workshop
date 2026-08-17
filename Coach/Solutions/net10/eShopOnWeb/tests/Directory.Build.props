@@ -1,0 +1,8 @@
+<Project>
+  <!-- Explicit references to override vulnerable transitive packages in all test projects -->
+  <ItemGroup>
+    <PackageReference Include="NuGet.Packaging" />
+    <PackageReference Include="NuGet.Protocol" />
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+  </ItemGroup>
+</Project>
