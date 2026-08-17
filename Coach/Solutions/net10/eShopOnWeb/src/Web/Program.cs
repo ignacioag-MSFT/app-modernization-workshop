@@ -66,16 +66,17 @@ else
         }
     }
 
+    var catalogConnectionString = builder.Configuration.GetConnectionString("CatalogConnection")
+        ?? throw new InvalidOperationException(
+            "Connection string 'CatalogConnection' is required. Set ConnectionStrings__CatalogConnection.");
+    var identityConnectionString = builder.Configuration.GetConnectionString("IdentityConnection")
+        ?? throw new InvalidOperationException(
+            "Connection string 'IdentityConnection' is required. Set ConnectionStrings__IdentityConnection.");
+
     builder.Services.AddDbContext<CatalogContext>(c =>
-    {
-        var connectionString = builder.Configuration[builder.Configuration["AZURE_SQL_CATALOG_CONNECTION_STRING_KEY"] ?? ""];
-        c.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure());
-    });
+        c.UseSqlServer(catalogConnectionString, sqlOptions => sqlOptions.EnableRetryOnFailure()));
     builder.Services.AddDbContext<AppIdentityDbContext>(options =>
-    {
-        var connectionString = builder.Configuration[builder.Configuration["AZURE_SQL_IDENTITY_CONNECTION_STRING_KEY"] ?? ""];
-        options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure());
-    });
+        options.UseSqlServer(identityConnectionString, sqlOptions => sqlOptions.EnableRetryOnFailure()));
 }
 
 builder.Services.AddCookieSettings();

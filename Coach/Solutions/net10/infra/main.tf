@@ -86,8 +86,10 @@ resource "azurerm_mssql_server" "sql" {
   azuread_administrator {
     login_username              = "EntraAdmin"
     object_id                   = data.azurerm_client_config.current.object_id
+    tenant_id                   = data.azurerm_client_config.current.tenant_id
     azuread_authentication_only = true
   }
+  tags = {}
 }
 
 # Allow Azure services to reach SQL Server
@@ -146,6 +148,13 @@ resource "azurerm_container_app_environment" "env" {
   location                   = azurerm_resource_group.rg.location
   resource_group_name        = azurerm_resource_group.rg.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
+
+  workload_profile {
+    maximum_count         = 0
+    minimum_count         = 0
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+  }
 }
 
 # ── User-Assigned Managed Identity ───────────────────────────────────────────
