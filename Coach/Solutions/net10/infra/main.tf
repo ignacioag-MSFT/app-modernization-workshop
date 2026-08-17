@@ -47,6 +47,7 @@ locals {
   suffix                 = random_string.suffix.result
   container_app_name     = "${var.prefix}-eshoponweb"
   container_app_api_name = "${var.prefix}-eshoponweb-api"
+  default_seed_password  = "Pass@word1"
 }
 
 resource "random_password" "jwt_secret" {
@@ -207,6 +208,11 @@ resource "azurerm_container_app" "eshop" {
     value = random_password.jwt_secret.result
   }
 
+  secret {
+    name  = "default-seed-password"
+    value = local.default_seed_password
+  }
+
   template {
     container {
       name   = "eshoponweb"
@@ -244,6 +250,11 @@ resource "azurerm_container_app" "eshop" {
       env {
         name        = "JwtSecretKey"
         secret_name = "jwt-secret"
+      }
+
+      env {
+        name        = "DefaultPassword"
+        secret_name = "default-seed-password"
       }
 
       # Azure OpenAI — passwordless via managed identity
@@ -315,6 +326,11 @@ resource "azurerm_container_app" "api" {
     value = random_password.jwt_secret.result
   }
 
+  secret {
+    name  = "default-seed-password"
+    value = local.default_seed_password
+  }
+
   template {
     container {
       name   = "eshoponweb-api"
@@ -347,6 +363,11 @@ resource "azurerm_container_app" "api" {
       env {
         name        = "JwtSecretKey"
         secret_name = "jwt-secret"
+      }
+
+      env {
+        name        = "DefaultPassword"
+        secret_name = "default-seed-password"
       }
 
       # Azure OpenAI — passwordless via managed identity
