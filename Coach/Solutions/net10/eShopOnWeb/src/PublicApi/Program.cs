@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.eShopWeb;
 using Microsoft.eShopWeb.ApplicationCore.Constants;
 using Microsoft.eShopWeb.ApplicationCore.Interfaces;
+using Microsoft.eShopWeb.PublicApi.Services;
 using Microsoft.eShopWeb.ApplicationCore.Services;
 using Microsoft.eShopWeb.Infrastructure.Data;
 using Microsoft.eShopWeb.Infrastructure.Identity;
@@ -66,6 +67,13 @@ var catalogSettings = builder.Configuration.Get<CatalogSettings>() ?? new Catalo
 builder.Services.AddSingleton<IUriComposer>(new UriComposer(catalogSettings));
 builder.Services.AddScoped(typeof(IAppLogger<>), typeof(LoggerAdapter<>));
 builder.Services.AddScoped<ITokenClaimsService, IdentityTokenClaimService>();
+
+// Register AI service (gracefully skipped when AzureOpenAI:Endpoint is not configured)
+var aiEndpoint = builder.Configuration["AzureOpenAI:Endpoint"] ?? string.Empty;
+var aiDeployment = builder.Configuration["AzureOpenAI:Deployment"] ?? "gpt-4.1-mini";
+builder.Services.AddSingleton<ICatalogItemAiService>(sp =>
+    new CatalogItemAiService(aiEndpoint, aiDeployment,
+        sp.GetRequiredService<ILogger<CatalogItemAiService>>()));
 
 var configSection = builder.Configuration.GetRequiredSection(BaseUrlConfiguration.CONFIG_NAME);
 builder.Services.Configure<BaseUrlConfiguration>(configSection);

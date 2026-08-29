@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+using System;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -16,10 +17,12 @@ namespace Microsoft.eShopWeb.PublicApi.CatalogItemEndpoints;
 public class UpdateCatalogItemEndpoint : IEndpoint<IResult, UpdateCatalogItemRequest, IRepository<CatalogItem>>
 { 
     private readonly IUriComposer _uriComposer;
+    private readonly ICatalogItemAiService _aiService;
 
-    public UpdateCatalogItemEndpoint(IUriComposer uriComposer)
+    public UpdateCatalogItemEndpoint(IUriComposer uriComposer, ICatalogItemAiService aiService)
     {
         _uriComposer = uriComposer;
+        _aiService = aiService;
     }
 
     public void AddRoute(IEndpointRouteBuilder app)
@@ -42,6 +45,17 @@ public class UpdateCatalogItemEndpoint : IEndpoint<IResult, UpdateCatalogItemReq
         if (existingItem == null)
         {
             return Results.NotFound();
+        }
+
+        // If an image was provided but no description, ask AI to suggest one
+        if (!string.IsNullOrWhiteSpace(request.PictureBase64) && string.IsNullOrWhiteSpace(request.Description))
+        {
+            var imageBytes = Convert.FromBase64String(request.PictureBase64);
+            var suggestion = await _aiService.SuggestAsync(imageBytes, "image/png", request.Name);
+            if (suggestion != null)
+            {
+                request.Description = suggestion.Description;
+            }
         }
 
         CatalogItem.CatalogItemDetails details = new(request.Name, request.Description, request.Price);

@@ -1,13 +1,12 @@
-﻿using System.Threading.Tasks;
+using System;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.eShopWeb.ApplicationCore.Entities;
-using Microsoft.eShopWeb.ApplicationCore.Exceptions;
 using Microsoft.eShopWeb.ApplicationCore.Interfaces;
-using Microsoft.eShopWeb.ApplicationCore.Specifications;
 using MinimalApi.Endpoint;
 
 namespace Microsoft.eShopWeb.PublicApi.CatalogItemEndpoints;
@@ -18,10 +17,12 @@ namespace Microsoft.eShopWeb.PublicApi.CatalogItemEndpoints;
 public class CreateCatalogItemEndpoint : IEndpoint<IResult, CreateCatalogItemRequest, IRepository<CatalogItem>>
 {
     private readonly IUriComposer _uriComposer;
+    private readonly ICatalogItemAiService _aiService;
 
-    public CreateCatalogItemEndpoint(IUriComposer uriComposer)
+    public CreateCatalogItemEndpoint(IUriComposer uriComposer, ICatalogItemAiService aiService)
     {
         _uriComposer = uriComposer;
+        _aiService = aiService;
     }
 
     public void AddRoute(IEndpointRouteBuilder app)
@@ -40,11 +41,22 @@ public class CreateCatalogItemEndpoint : IEndpoint<IResult, CreateCatalogItemReq
     {
         var response = new CreateCatalogItemResponse(request.CorrelationId());
 
-        var catalogItemNameSpecification = new CatalogItemNameSpecification(request.Name);
+        var catalogItemNameSpecification = new ApplicationCore.Specifications.CatalogItemNameSpecification(request.Name);
         var existingCataloogItem = await itemRepository.CountAsync(catalogItemNameSpecification);
         if (existingCataloogItem > 0)
         {
-            throw new DuplicateException($"A catalogItem with name {request.Name} already exists");
+            throw new ApplicationCore.Exceptions.DuplicateException($"A catalogItem with name {request.Name} already exists");
+        }
+
+        // If an image was provided but no description, ask AI to suggest one
+        if (!string.IsNullOrWhiteSpace(request.PictureBase64) && string.IsNullOrWhiteSpace(request.Description))
+        {
+            var imageBytes = Convert.FromBase64String(request.PictureBase64);
+            var suggestion = await _aiService.SuggestAsync(imageBytes, "image/png", request.Name);
+            if (suggestion != null)
+            {
+                request.Description = suggestion.Description;
+            }
         }
 
         var newItem = new CatalogItem(request.CatalogTypeId, request.CatalogBrandId, request.Description, request.Name, request.Price, request.PictureUri);
