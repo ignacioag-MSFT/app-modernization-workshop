@@ -6,6 +6,10 @@
         "dockerfile": "Dockerfile",
         "context": "."
     },
+    "features": {
+        "ghcr.io/devcontainers/features/azure-cli:1": {},
+        "ghcr.io/devcontainers/features/terraform:1": {}
+    },
     // VS Code extensions pre-installed inside the container
     "customizations": {
         "vscode": {
@@ -47,6 +51,6 @@
         }
     },
     // Useful lifecycle commands
-    "postCreateCommand": "git submodule update --init --recursive && curl -fsSL https://raw.githubusercontent.com/microsoft/modernize-cli/main/scripts/install.sh | sh && source ~/.bashrc && mvn --version && terraform --version && az --version && modernize --version",
+    "postCreateCommand": "git submodule update --init --recursive && curl -fsSL https://raw.githubusercontent.com/microsoft/modernize-cli/main/scripts/install.sh | sh && mvn --version && terraform --version && az --version && $HOME/.local/bin/modernize --version",
     "mounts": []
 }
