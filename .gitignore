@@ -185,5 +185,8 @@ apm_modules/
 # Local cache files
 .lscache
 
+# Local browser diagnostics may contain credentials or session tokens
+Troubleshooting/
+
 # Build output directories
 _site

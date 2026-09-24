@@ -182,7 +182,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
 # no command-line length limit, no storage account required.
 resource "azurerm_virtual_machine_run_command" "setup" {
   name               = "setup-contoso"
-  virtual_machine_id = azurerm_windows_virtual_machine.vm.id
+  virtual_machine_id = azurerm_windows_virtual_machine.  terraform apply -auto-appro  terraform apply -auto-approve.id
   location           = azurerm_resource_group.rg.location
 
   source {
