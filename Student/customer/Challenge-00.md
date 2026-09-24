@@ -14,11 +14,12 @@ Choose **one application** from your customer's portfolio to modernize. The appl
 
 - **Medium complexity** — multi-layer with an external database and at least one legacy dependency worth replacing (e.g. an old messaging technology, local file storage, end-of-life runtime)
 - **Not the most critical or most complex** application in the portfolio — pick something that is representative enough to be meaningful but realistic to modernize in a focused session
-- Buildable locally, even if the build has warnings or requires legacy tooling
+- **Business and product stakeholder engagement.** Business and product stakeholders need to be part of the decision before any delivery work starts.
 
 Before committing to your selection, verify:
 
-- [ ] The repository is accessible to everyone on your team
+- [ ] Application is built on .NET, Java, or Python.
+- [ ] The source code is available and the repository is accessible to everyone on your team
 - [ ] The application builds locally
 - [ ] Docker and container tooling are available on your workstation
 - [ ] Someone on the team understands what the application does
@@ -31,7 +32,9 @@ Once your application is selected and the readiness checks pass, apply the same 
 2. Use `modernize plan create` to generate a migration plan targeting a modern runtime and a container platform (AKS or ACA)
 3. Use `modernize plan execute` to apply the plan
 4. Resolve remaining issues with GitHub Copilot Chat
-5. Containerize the application and deploy to Azure
+5. Containerize the application, producing the Dockerfiles, Kubernetes/ACA manifests, and other deployment artifacts needed to run it, then deploy to Azure
+6. Introduce a testing and validation approach the customer's team can keep using on future modernization work
+7. Build Bicep / Terraform templates and a GitHub Actions or Azure DevOps pipeline to automate the deployment
 
 ---
 

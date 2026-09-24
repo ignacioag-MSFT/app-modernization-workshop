@@ -5,7 +5,7 @@
 # What this script does:
 #   1. Updates the OS and installs Docker Engine + Docker Compose plugin + git
 #   2. Clones the PhotoAlbum-Java repository
-#   3. Starts the application stack with docker compose (Oracle + Spring Boot)
+#   3. Creates protected credentials and starts Docker Compose (Oracle + Spring Boot)
 #   4. Installs a systemd service so the stack restarts on VM reboot
 #
 # Total first-boot time: ~10 minutes (Oracle initialisation takes 3–5 minutes)
@@ -26,12 +26,12 @@ apt-get upgrade -y
 
 # ── 2. Install Docker Engine ──────────────────────────────────────────────────
 echo "--- Installing Docker Engine..."
-apt-get install -y ca-certificates curl gnupg lsb-release git
+apt-get install -y ca-certificates curl gnupg lsb-release git openssl
 
 # Docker official GPG key
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    | gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
 chmod a+r /etc/apt/keyrings/docker.gpg
 
 # Docker apt repository
@@ -132,40 +132,70 @@ echo "--- Ora2Pg $(ora2pg --version 2>/dev/null || echo 'installed (version chec
 REPO_URL="https://github.com/Azure-Samples/PhotoAlbum-Java.git"
 APP_DIR="/opt/photoalbum"
 
-echo "--- Cloning $REPO_URL → $APP_DIR..."
-if [ -d "$APP_DIR" ]; then
-    rm -rf "$APP_DIR"
+if [ -d "$APP_DIR/.git" ]; then
+    echo "--- Reusing existing PhotoAlbum checkout at $APP_DIR."
+else
+    echo "--- Cloning $REPO_URL → $APP_DIR..."
+    git clone "$REPO_URL" "$APP_DIR"
+    echo "--- Repository cloned."
 fi
-git clone "$REPO_URL" "$APP_DIR"
-echo "--- Repository cloned."
 
 # ── 4. Start the application with Docker Compose ─────────────────────────────
 echo "--- Starting PhotoAlbum stack with docker compose..."
 cd "$APP_DIR"
 
+# Fix missing Compose credentials: demo DB defaults and a random website admin password.
+ENV_FILE="$APP_DIR/.env"
+if [ ! -e "$ENV_FILE" ]; then
+    (
+        set +x
+        umask 077
+        APP_ADMIN_PASSWORD=$(openssl rand -hex 15)
+        cat > "$ENV_FILE" <<EOF
+ORACLE_PASSWORD=photoalbum
+APP_USER=photoalbum
+APP_USER_PASSWORD=photoalbum
+APP_ADMIN_USERNAME=admin
+APP_ADMIN_PASSWORD=${APP_ADMIN_PASSWORD}
+EOF
+    )
+    echo "--- Created root-only application credentials in $ENV_FILE."
+fi
+chown root:root "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+
 # Fix: gvenzl/oracle-free uses service FREEPDB1, not XE (which is Oracle XE).
 # The upstream create-user.sh connects to XE, causing the container to exit(1).
 cat > "$APP_DIR/oracle-init/create-user.sh" << 'CREATEUSER'
 #!/bin/bash
+set -euo pipefail
+set +x
+: "${APP_USER_PASSWORD:?APP_USER_PASSWORD must be set}"
+APP_USER_UPPER=$(printf '%s' "${APP_USER:-photoalbum}" | tr '[:lower:]' '[:upper:]')
+
 echo "Waiting for Oracle to be ready..."
 sleep 30
 
-sqlplus -s system/photoalbum@//localhost:1521/FREEPDB1 <<EOF
+# Local OS authentication keeps the administrator password out of process arguments.
+sqlplus -s / as sysdba <<EOF
+WHENEVER OSERROR EXIT FAILURE
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+ALTER SESSION SET CONTAINER = FREEPDB1;
 DECLARE
     user_exists NUMBER;
 BEGIN
-    SELECT COUNT(*) INTO user_exists FROM dba_users WHERE username = 'PHOTOALBUM';
+    SELECT COUNT(*) INTO user_exists FROM dba_users WHERE username = '${APP_USER_UPPER}';
     IF user_exists = 0 THEN
-        EXECUTE IMMEDIATE 'CREATE USER photoalbum IDENTIFIED BY photoalbum';
-        EXECUTE IMMEDIATE 'GRANT CONNECT, RESOURCE TO photoalbum';
-        EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO photoalbum';
-        EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO photoalbum';
-        EXECUTE IMMEDIATE 'GRANT CREATE SEQUENCE TO photoalbum';
-        EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO photoalbum';
-        EXECUTE IMMEDIATE 'ALTER USER photoalbum DEFAULT TABLESPACE USERS';
-        DBMS_OUTPUT.PUT_LINE('User photoalbum created successfully');
+        EXECUTE IMMEDIATE 'CREATE USER "${APP_USER_UPPER}" IDENTIFIED BY "${APP_USER_PASSWORD}"';
+        EXECUTE IMMEDIATE 'GRANT CONNECT, RESOURCE TO "${APP_USER_UPPER}"';
+        EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "${APP_USER_UPPER}"';
+        EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO "${APP_USER_UPPER}"';
+        EXECUTE IMMEDIATE 'GRANT CREATE SEQUENCE TO "${APP_USER_UPPER}"';
+        EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO "${APP_USER_UPPER}"';
+        EXECUTE IMMEDIATE 'ALTER USER "${APP_USER_UPPER}" DEFAULT TABLESPACE USERS';
+        DBMS_OUTPUT.PUT_LINE('Application user created successfully');
     ELSE
-        DBMS_OUTPUT.PUT_LINE('User photoalbum already exists');
+        DBMS_OUTPUT.PUT_LINE('Application user already exists');
     END IF;
 END;
 /
@@ -185,14 +215,17 @@ services:
     shm_size: '1gb'
 OVERRIDE
 
+# Validate required credentials without printing the resolved configuration.
+docker compose --env-file "$ENV_FILE" config --quiet
+
 # Pull images first to give a cleaner startup
-docker compose pull --quiet || true
+docker compose --env-file "$ENV_FILE" pull --quiet
 
 # Build the Spring Boot image and start all services in the background
-docker compose up --build -d
+docker compose --env-file "$ENV_FILE" up --build -d
 
 echo "--- Docker containers started:"
-docker compose ps
+docker compose --env-file "$ENV_FILE" ps
 
 # ── 5. Install systemd service for reboot persistence ────────────────────────
 echo "--- Installing systemd service for auto-restart on reboot..."
@@ -207,8 +240,8 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/photoalbum
-ExecStart=/usr/bin/docker compose up -d
-ExecStop=/usr/bin/docker compose down
+ExecStart=/usr/bin/docker compose --env-file /opt/photoalbum/.env up -d
+ExecStop=/usr/bin/docker compose --env-file /opt/photoalbum/.env down
 TimeoutStartSec=300
 
 [Install]
@@ -233,7 +266,7 @@ echo "  Oracle Database takes 3–5 minutes to fully initialise on first run."
 echo "  The Spring Boot app will retry the connection automatically."
 echo ""
 echo "  Check container status:"
-echo "    sudo docker compose -f $APP_DIR/docker-compose.yml ps"
+echo "    cd $APP_DIR && sudo docker compose --env-file $ENV_FILE ps"
 echo ""
 echo "  View application logs:"
-echo "    sudo docker compose -f $APP_DIR/docker-compose.yml logs -f photoalbum-java-app"
+echo "    cd $APP_DIR && sudo docker compose --env-file $ENV_FILE logs -f photoalbum-java-app"
